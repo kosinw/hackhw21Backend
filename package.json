@@ -1,0 +1,26 @@
+{
+  "name": "hackhw21",
+  "version": "1.0.0",
+  "description": "Backend Modules",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.17.1",
+    "uuid": "^8.3.2",
+    "ws": "^7.4.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kosinw/hackhw21.git"
+  },
+  "author": "willf668",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kosinw/hackhw21/issues"
+  },
+  "homepage": "https://github.com/kosinw/hackhw21#readme"
+}
