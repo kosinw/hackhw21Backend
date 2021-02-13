@@ -4,9 +4,15 @@
   "description": "Backend Modules",
   "main": "server.js",
   "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
     "express": "^4.17.1",
+    "socket.io": "^3.1.1",
+    "socket.io-stream": "^0.9.1",
     "uuid": "^8.3.2",
-    "ws": "^7.4.3"
+    "ws": "^7.4.3",
+    "yt-play-cli": "^0.13.3",
+    "ytdl-core": "^4.4.5"
   },
   "devDependencies": {},
   "scripts": {
