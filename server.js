@@ -11,12 +11,23 @@ const socket = require("socket.io");
 const ss = require("socket.io-stream")
 const io = socket(server, {
     cors: {
-        origin: 'http://localhost:3000',
+        origin: '*',
     }
 });
 
-const port = 64198;
+class AuthInfo {
+    constructor(userID, socketID, displayName, photoURL) {
+        this.userID = userID;
+        this.socketID = socketID;
+        this.displayName = displayName;
+        this.photoURL = photoURL;
+    }
+}
+
+const port = 8000;
 const users = {};
+const auth = {};
+const songqueue = {};
 
 const socketToRoom = {};
 
@@ -25,14 +36,20 @@ function sendMessage(sender, message, id, roomID) {
         sender: sender, //name goes here
         message: message
     });
+    console.log(users);
+
+    if (!users[roomID]) {
+        users[roomID] = [id];
+    }
+
     users[roomID].forEach(element => {
-        if (element != id) {
-            io.to(element).emit("receiving message", data);
-        }
+        console.log(data);
+        io.to(element).emit("receiving message", data);
     });
 }
 
 io.on('connection', socket => {
+
     socket.on("join room", roomID => {
         if (users[roomID]) {
             const length = users[roomID].length;
@@ -50,6 +67,35 @@ io.on('connection', socket => {
         socket.emit("all users", usersInThisRoom);
     });
 
+    socket.on("auth/user/join", payload => {
+        const { roomID, userID, displayName, photoURL } = JSON.parse(payload);
+
+        if (!!auth[roomID]) {
+            const length = auth[roomID].length;
+            if (length === 10) {
+                socket.emit("room full");
+                return;
+            }
+            auth[roomID].push(new AuthInfo(userID, socket.id, displayName, photoURL))
+        } else {
+            auth[roomID] = [new AuthInfo(userID, socket.id, displayName, photoURL)];
+        }
+
+        const usersInThisRoom = auth[roomID]
+            .filter(info => info.socketID !== socket.id)
+            .map(JSON.stringify);
+
+        socket.emit("auth/user/currentUsers", usersInThisRoom);
+
+        auth[roomID].filter(info => info.socketID !== socket.id).forEach(info => {
+            const notMe = auth[roomID]
+                .filter(info2 => info.socketID !== info2.socketID)
+                .map(JSON.stringify);
+
+            io.to(info.socketID).emit("auth/user/currentUsers", notMe);
+        })
+    })
+
     socket.on("sending signal", payload => {
         io.to(payload.userToSignal).emit('user joined', { signal: payload.signal, callerID: payload.callerID });
     });
@@ -59,6 +105,14 @@ io.on('connection', socket => {
     });
 
     socket.on("sending message", message => {
+        const roomID = socketToRoom[socket.id];
+
+        if (!!auth[roomID]) {
+            const sender = JSON.stringify(auth[roomID].filter(a => a.socketID === socket.id)[0]);
+            sendMessage(sender, message, socket.id, roomID);
+        } else {
+            sendMessage("Big Chungus", message, socket.id, roomID);
+        }
         sendMessage("Big Chungus", message, socket.id, socketToRoom[socket.id]);
     });
 
@@ -108,10 +162,29 @@ io.on('connection', socket => {
 
     socket.on('disconnect', () => {
         const roomID = socketToRoom[socket.id];
-        let room = users[roomID];
-        if (room) {
-            room = room.filter(id => id !== socket.id);
-            users[roomID] = room;
+        {
+            let room = users[roomID];
+            if (!!room) {
+                room = room.filter(id => id !== socket.id);
+                users[roomID] = room;
+            }
+        }
+        {
+            let room = auth[roomID];
+            if (!!room) {
+                room = room.filter(info => info.socketID !== socket.id);
+                auth[roomID] = room;
+            }
+
+            if (!!room) {
+                room.forEach(info => {
+                    const notMe = room
+                        .filter(info2 => info.socketID !== info2.socketID)
+                        .map(JSON.stringify);
+
+                    io.to(info.socketID).emit("auth/user/currentUsers", notMe);
+                })
+            }
         }
         socket.broadcast.emit("user left", socket.id);
     });
