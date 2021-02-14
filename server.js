@@ -12,11 +12,11 @@ const socket = require("socket.io");
 const ss = require("socket.io-stream")
 const io = socket(server, {
     cors: {
-        origin: 'http://localhost:3000',
+        origin: '*',
     }
 });
 
-const port = 64198;
+const port = 8000;
 const users = {};
 const songqueue = {};
 
@@ -52,6 +52,8 @@ io.on('connection', socket => {
 
         socket.emit("all users", usersInThisRoom);
     });
+
+    socket.on("")
 
     socket.on("sending signal", payload => {
         io.to(payload.userToSignal).emit('user joined', { signal: payload.signal, callerID: payload.callerID });
