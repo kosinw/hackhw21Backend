@@ -37,10 +37,15 @@ function sendMessage(sender, message, id, roomID) {
         sender: sender, //name goes here
         message: message
     });
+    console.log(users);
+
+    if (!users[roomID]) {
+        users[roomID] = [id];
+    }
+
     users[roomID].forEach(element => {
-        if (element != id) {
-            io.to(element).emit("receiving message", data);
-        }
+        console.log(data);
+        io.to(element).emit("receiving message", data);
     });
 }
 
@@ -78,8 +83,6 @@ io.on('connection', socket => {
             auth[roomID] = [new AuthInfo(userID, socket.id, displayName, photoURL)];
         }
 
-        console.log(auth)
-
         const usersInThisRoom = auth[roomID]
             .filter(info => info.socketID !== socket.id)
             .map(JSON.stringify);
@@ -104,7 +107,14 @@ io.on('connection', socket => {
     });
 
     socket.on("sending message", message => {
-        sendMessage("Big Chungus", message, socket.id, socketToRoom[socket.id]);
+        const roomID = socketToRoom[socket.id];
+
+        if (!!auth[roomID]) {
+            const sender = JSON.stringify(auth[roomID].filter(a => a.socketID === socket.id)[0]);
+            sendMessage(sender, message, socket.id, roomID);
+        } else {
+            sendMessage("Big Chungus", message, socket.id, roomID);
+        }
     });
 
     socket.on("getLink", search => {
