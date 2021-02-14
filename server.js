@@ -16,13 +16,23 @@ const io = socket(server, {
     }
 });
 
+class AuthInfo {
+    constructor(userID, socketID, displayName, photoURL) {
+        this.userID = userID;
+        this.socketID = socketID;
+        this.displayName = displayName;
+        this.photoURL = photoURL;
+    }
+}
+
 const port = 8000;
 const users = {};
+const auth = {};
 const songqueue = {};
 
 const socketToRoom = {};
 
-function sendMessage(sender,message,id,roomID) {
+function sendMessage(sender, message, id, roomID) {
     const data = JSON.stringify({
         sender: sender, //name goes here
         message: message
@@ -35,6 +45,7 @@ function sendMessage(sender,message,id,roomID) {
 }
 
 io.on('connection', socket => {
+
     socket.on("join room", roomID => {
         if (users[roomID]) {
             const length = users[roomID].length;
@@ -53,7 +64,36 @@ io.on('connection', socket => {
         socket.emit("all users", usersInThisRoom);
     });
 
-    socket.on("")
+    socket.on("auth/user/join", payload => {
+        const { roomID, userID, displayName, photoURL } = JSON.parse(payload);
+
+        if (!!auth[roomID]) {
+            const length = auth[roomID].length;
+            if (length === 10) {
+                socket.emit("room full");
+                return;
+            }
+            auth[roomID].push(new AuthInfo(userID, socket.id, displayName, photoURL))
+        } else {
+            auth[roomID] = [new AuthInfo(userID, socket.id, displayName, photoURL)];
+        }
+
+        console.log(auth)
+
+        const usersInThisRoom = auth[roomID]
+            .filter(info => info.socketID !== socket.id)
+            .map(JSON.stringify);
+
+        socket.emit("auth/user/currentUsers", usersInThisRoom);
+
+        auth[roomID].filter(info => info.socketID !== socket.id).forEach(info => {
+            const notMe = auth[roomID]
+                .filter(info2 => info.socketID !== info2.socketID)
+                .map(JSON.stringify);
+
+            io.to(info.socketID).emit("auth/user/currentUsers", notMe);
+        })
+    })
 
     socket.on("sending signal", payload => {
         io.to(payload.userToSignal).emit('user joined', { signal: payload.signal, callerID: payload.callerID });
@@ -64,7 +104,7 @@ io.on('connection', socket => {
     });
 
     socket.on("sending message", message => {
-        sendMessage("Big Chungus",message,socket.id,socketToRoom[socket.id]);
+        sendMessage("Big Chungus", message, socket.id, socketToRoom[socket.id]);
     });
 
     socket.on("getLink", search => {
@@ -73,11 +113,11 @@ io.on('connection', socket => {
         yts(opts, function (err, r) {
             if (err) throw err;
             else {
-                sendMessage("Music Queue",r.videos[0].title,-1,roomID);
+                sendMessage("Music Queue", r.videos[0].title, -1, roomID);
                 songqueue[roomID].push(r.videos[0].url);
                 const payload = JSON.stringify({
                     url: r.videos[0].url,
-                    time: (1000*(Math.round((new Date()).getTime() / 1000)+ 4))//add 8 seconds
+                    time: (1000 * (Math.round((new Date()).getTime() / 1000) + 4))//add 8 seconds
                 });
                 users[roomID].forEach(element => {
                     io.to(element).emit("link", payload);
@@ -88,10 +128,29 @@ io.on('connection', socket => {
 
     socket.on('disconnect', () => {
         const roomID = socketToRoom[socket.id];
-        let room = users[roomID];
-        if (room) {
-            room = room.filter(id => id !== socket.id);
-            users[roomID] = room;
+        {
+            let room = users[roomID];
+            if (!!room) {
+                room = room.filter(id => id !== socket.id);
+                users[roomID] = room;
+            }
+        }
+        {
+            let room = auth[roomID];
+            if (!!room) {
+                room = room.filter(info => info.socketID !== socket.id);
+                auth[roomID] = room;
+            }
+
+            if (!!room) {
+                room.forEach(info => {
+                    const notMe = room
+                        .filter(info2 => info.socketID !== info2.socketID)
+                        .map(JSON.stringify);
+
+                    io.to(info.socketID).emit("auth/user/currentUsers", notMe);
+                })
+            }
         }
         socket.broadcast.emit("user left", socket.id);
     });
