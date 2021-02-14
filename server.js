@@ -4,7 +4,6 @@ const http = require("http");
 const app = express();
 const cors = require("cors");
 const yts = require('yt-search');
-const ytdl = require('ytdl-core');
 const fs = require('fs');
 //app.use(cors());
 const server = http.createServer(app);
@@ -61,7 +60,6 @@ io.on('connection', socket => {
             users[roomID].push(socket.id);
         } else {
             users[roomID] = [socket.id];
-            songqueue[roomID] = [];
         }
         socketToRoom[socket.id] = roomID;
         const usersInThisRoom = users[roomID].filter(id => id !== socket.id);
@@ -115,25 +113,51 @@ io.on('connection', socket => {
         } else {
             sendMessage("Big Chungus", message, socket.id, roomID);
         }
+        sendMessage("Big Chungus", message, socket.id, socketToRoom[socket.id]);
+    });
+
+    socket.on("noteLoop", noteData => {
+        const roomID = socketToRoom[socket.id];
+        users[roomID].forEach(element => {
+            if (element != socket.id) {
+                io.to(element).emit("noteLoop", noteData);
+            }
+        });
+    });
+
+    socket.on("noteReset", payload => {
+        const roomID = socketToRoom[socket.id];
+        users[roomID].forEach(element => {
+            if (element != socket.id) {
+                io.to(element).emit("noteReset", "");
+            }
+        });
     });
 
     socket.on("getLink", search => {
         const roomID = socketToRoom[socket.id];
-        var opts = { query: search };
+        const data = JSON.parse(search);
+        var opts = { query: data.search };
         yts(opts, function (err, r) {
             if (err) throw err;
             else {
                 sendMessage("Music Queue", r.videos[0].title, -1, roomID);
-                songqueue[roomID].push(r.videos[0].url);
                 const payload = JSON.stringify({
                     url: r.videos[0].url,
-                    time: (1000 * (Math.round((new Date()).getTime() / 1000) + 4))//add 8 seconds
+                    time: (1000 * (Math.round((new Date()).getTime() / 1000) + 4))//add seconds
                 });
                 users[roomID].forEach(element => {
-                    io.to(element).emit("link", payload);
+                    io.to(element).emit(data.type, payload);
                 });
             }
         })
+    });
+
+    socket.on("skip", payload => {
+        const roomID = socketToRoom[socket.id];
+        users[roomID].forEach(element => {
+            io.to(element).emit("skip", (1000 * (Math.round((new Date()).getTime() / 1000) + 2)));
+        });
     });
 
     socket.on('disconnect', () => {
