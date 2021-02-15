@@ -11,7 +11,7 @@ const socket = require("socket.io");
 const ss = require("socket.io-stream")
 const io = socket(server, {
     cors: {
-        origin: '*',
+        origin: ["http://localhost:3000", "https://cfe.house/"],
     }
 });
 
